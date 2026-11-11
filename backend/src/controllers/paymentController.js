@@ -11,6 +11,40 @@ const client = new MercadoPagoConfig({
 })
 const TEMPO_PAGAMENTO_MS = 10 * 60 * 1000
 
+function pagamentoAprovadoNoPrazo(payment, booking) {
+  const dataPagamento = payment?.date_approved || payment?.date_created
+  return payment?.status === 'approved' &&
+    String(payment.external_reference) === String(booking.id) &&
+    Number(payment.transaction_amount) === Number(booking.valorTotal) &&
+    Boolean(dataPagamento) &&
+    new Date(dataPagamento).getTime() <=
+      new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS
+}
+
+async function buscarPagamentoDaReserva(booking) {
+  if (!process.env.MP_ACCESS_TOKEN) return null
+
+  const paymentClient = new Payment(client)
+  if (booking.payment?.gatewayId) {
+    return paymentClient.get({ id: String(booking.payment.gatewayId) })
+  }
+
+  const resultado = await paymentClient.search({
+    options: {
+      external_reference: String(booking.id),
+      limit: 10,
+      sort: 'date_created',
+      criteria: 'desc'
+    }
+  })
+
+  return resultado.results?.find((payment) =>
+    pagamentoAprovadoNoPrazo(payment, booking)
+  ) ||
+    resultado.results?.[0] ||
+    null
+}
+
 async function expirarPagamento(booking) {
   if (booking.payment?.preferenceId) {
     try {
@@ -196,19 +230,15 @@ async function webhook(req, res) {
         where: { id: bookingId },
         include: { payment: true }
       })
-      const amountMatches = bookingOriginal &&
-        Number(payment.transaction_amount) === Number(bookingOriginal.valorTotal)
       const paymentMatches =
         bookingOriginal?.payment &&
         (!bookingOriginal.payment.gatewayId ||
           bookingOriginal.payment.gatewayId === String(payment.id))
 
-      const dataPagamento = payment.date_approved || payment.date_created
-      const aprovadoNoPrazo = bookingOriginal && dataPagamento &&
-        new Date(dataPagamento).getTime() <=
-          new Date(bookingOriginal.createdAt).getTime() + TEMPO_PAGAMENTO_MS
+      const aprovadoNoPrazo = bookingOriginal &&
+        pagamentoAprovadoNoPrazo(payment, bookingOriginal)
 
-      if (status === 'approved' && amountMatches && paymentMatches && aprovadoNoPrazo && bookingOriginal.status === 'pendente') {
+      if (status === 'approved' && paymentMatches && aprovadoNoPrazo && bookingOriginal.status === 'pendente') {
         const bookingAtualizado = await prisma.booking.update({
           where: { id: bookingId },
           data: { status: 'confirmado' },
@@ -266,42 +296,46 @@ async function confirmarPagamento(req, res) {
       return res.status(403).json({ error: "Sem permissão." });
     }
 
-    if (
-      booking.status === 'pendente' &&
-      Date.now() >= new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS
-    ) {
-      await expirarPagamento(booking)
-      return res.status(410).json({ error: 'O prazo de pagamento expirou. A reserva foi cancelada.' })
-    }
+    if (booking.status !== 'confirmado') {
+      const gatewayPayment = await buscarPagamentoDaReserva(booking);
 
-    if (booking.status !== 'confirmado' && booking.payment?.gatewayId) {
-      const paymentClient = new Payment(client);
-      const gatewayPayment = await paymentClient.get({ id: String(booking.payment.gatewayId) });
-      const referenceMatches = String(gatewayPayment.external_reference) === String(booking.id);
-      const amountMatches = Number(gatewayPayment.transaction_amount) === Number(booking.valorTotal);
-      const dataPagamento = gatewayPayment.date_approved || gatewayPayment.date_created;
-      const aprovadoNoPrazo = dataPagamento &&
-        new Date(dataPagamento).getTime() <=
-          new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS;
+      if (gatewayPayment && pagamentoAprovadoNoPrazo(gatewayPayment, booking)) {
+        booking = await prisma.booking.update({
+          where: { id: idSeguro },
+          data: { status: 'confirmado' },
+          include: { court: true, user: true, payment: true }
+        });
 
-      if (gatewayPayment.status === 'approved' && referenceMatches && amountMatches && aprovadoNoPrazo) {
-      booking = await prisma.booking.update({
-        where: { id: idSeguro },
-        data: { status: 'confirmado' },
-        include: { court: true, user: true, payment: true }
-      });
-      
-      await prisma.payment.upsert({
-        where: { bookingId: idSeguro },
-        update: { status: 'aprovado', valor: Number(booking.valorTotal), metodo: gatewayPayment.payment_type_id },
-        create: { bookingId: idSeguro, gatewayId: String(gatewayPayment.id), valor: Number(booking.valorTotal), metodo: gatewayPayment.payment_type_id, status: 'aprovado' }
-      });
+        await prisma.payment.upsert({
+          where: { bookingId: idSeguro },
+          update: {
+            status: 'aprovado',
+            valor: Number(booking.valorTotal),
+            metodo: gatewayPayment.payment_type_id,
+            gatewayId: String(gatewayPayment.id)
+          },
+          create: {
+            bookingId: idSeguro,
+            gatewayId: String(gatewayPayment.id),
+            valor: Number(booking.valorTotal),
+            metodo: gatewayPayment.payment_type_id,
+            status: 'aprovado'
+          }
+        });
 
         try {
           await processarEnvioEmail(booking);
         } catch (emailErr) {
           console.error('Erro ao enviar e-mail no fallback:', emailErr.message);
         }
+      } else if (
+        booking.status === 'pendente' &&
+        Date.now() >= new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS
+      ) {
+        await expirarPagamento(booking);
+        return res.status(410).json({
+          error: 'O prazo de pagamento expirou. A reserva foi cancelada.'
+        });
       }
     }
 
@@ -319,4 +353,9 @@ async function confirmarPagamento(req, res) {
   }
 }
 
-module.exports = { criarPagamento, webhook, confirmarPagamento }
+module.exports = {
+  criarPagamento,
+  webhook,
+  confirmarPagamento,
+  pagamentoAprovadoNoPrazo
+}
