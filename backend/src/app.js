@@ -44,8 +44,17 @@ app.use(cors({
 
 app.options(/(.*)/, cors());
 
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser())
+
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  if (mutating && origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ error: 'Origem não autorizada.' });
+  }
+  next();
+});
 
 app.use('/auth', authRoutes);
 app.use('/courts', courtRoutes);

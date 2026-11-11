@@ -18,16 +18,11 @@ export default function ProcessarPagamento() {
     }
 
     // 3. Captura as variações de nomes que o Mercado Pago usa para o status na URL
-    const mpStatus = params.get("status") || params.get("collection_status") || params.get("payment_status") || "approved";
-
     if (bookingId) {
-      console.log("Processando Reserva ID:", bookingId, "Status recebido:", mpStatus);
-
-      // 4. Envia os dados para a sua rota pública do Back-end
-      api.post("/payments/confirmar", { 
-        bookingId: Number(bookingId),
-        status: mpStatus 
-      })
+    // 4. Envia os dados para a sua rota pública do Back-end
+    api.post("/payments/confirmar", {
+      bookingId: Number(bookingId)
+    })
       .then((res) => {
         // Se o back-end validou ou forçou a aprovação porque o status era de sucesso
         if (res.data.pago) {

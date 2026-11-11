@@ -723,7 +723,20 @@ async function horariosDisponiveis(req, res) {
 async function listarTodas(req, res) {
   try {
     const bookings = await prisma.booking.findMany({
-      include: { court: true, user: true },
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            telefone: true,
+            cpf: true,
+            cidade: true,
+            estado: true
+          }
+        }
+      },
       orderBy: { data: 'asc' }
     });
 
@@ -866,6 +879,17 @@ async function buscarPorId(req, res) {
 
     if (!booking) {
       return res.status(404).json({ error: "Reserva não encontrada" });
+    }
+
+    const userId = Number(req.userId);
+    if (req.userRole !== 'admin' && booking.userId !== userId) {
+      return res.status(403).json({ error: "Sem permissão para consultar esta reserva." });
+    }
+
+    if (booking.user) {
+      delete booking.user.senha;
+      delete booking.user.passwordResetToken;
+      delete booking.user.passwordResetExpires;
     }
 
     return res.json(booking);

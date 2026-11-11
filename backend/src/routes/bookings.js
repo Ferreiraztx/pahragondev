@@ -19,20 +19,21 @@ const {
   obterPrecoRaquete
 } = require('../controllers/bookingController');
 const auth = require('../middlewares/auth');
+const admin = require('../middlewares/admin');
 
 router.get('/disponiveis', horariosDisponiveis);
 router.get('/minhas', auth, minhasReservas);
-router.get('/todas', auth, listarTodas);
+router.get('/todas', auth, admin, listarTodas);
 router.post('/', auth, criar);
 router.patch('/:id/cancelar', auth, cancelar);
 router.get('/detalhes/:id', auth, buscarPorId);
-router.post('/bloqueios', auth, criarBloqueio);
-router.get('/bloqueios', auth, listarBloqueios);
-router.delete('/bloqueios/:id', auth, deletarBloqueio);
-router.post('/manual', auth, criarManual);
-router.put('/manual/:id', auth, atualizarManual);
-router.delete('/manual/:id', auth, deletarManual);
-router.delete('/limpar-canceladas', requireAuth, limparHistoricoCancelado);
+router.post('/bloqueios', auth, admin, criarBloqueio);
+router.get('/bloqueios', auth, admin, listarBloqueios);
+router.delete('/bloqueios/:id', auth, admin, deletarBloqueio);
+router.post('/manual', auth, admin, criarManual);
+router.put('/manual/:id', auth, admin, atualizarManual);
+router.delete('/manual/:id', auth, admin, deletarManual);
+router.delete('/limpar-canceladas', requireAuth, admin, limparHistoricoCancelado);
 router.get('/preco-raquete', obterPrecoRaquete);
 
 module.exports = router;

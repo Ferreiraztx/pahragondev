@@ -149,8 +149,15 @@ async function webhook(req, res) {
 
       const bookingId = Number(payment.external_reference)
       const status = payment.status
+      const bookingOriginal = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: { payment: true }
+      })
+      const amountMatches = bookingOriginal &&
+        Number(payment.transaction_amount) === Number(bookingOriginal.valorTotal)
+      const paymentMatches = bookingOriginal?.payment?.gatewayId === String(payment.id)
 
-      if (status === 'approved') {
+      if (status === 'approved' && amountMatches && paymentMatches) {
         const bookingAtualizado = await prisma.booking.update({
           where: { id: bookingId },
           data: { status: 'confirmado' },
@@ -181,7 +188,7 @@ async function webhook(req, res) {
 }
 
 async function confirmarPagamento(req, res) {
-  const { bookingId, status } = req.body; 
+  const { bookingId } = req.body;
 
   const idSeguro = Number(bookingId);
   if (!idSeguro || isNaN(idSeguro)) {
@@ -192,41 +199,42 @@ async function confirmarPagamento(req, res) {
     // 1. Busca a reserva atual no banco
     let booking = await prisma.booking.findUnique({
       where: { id: idSeguro },
-      include: { court: true, user: true }
+      include: { court: true, user: true, payment: true }
     });
 
     if (!booking) {
       return res.status(404).json({ error: "Reserva não encontrada." });
     }
 
-    // Padroniza o status recebido para minúsculo para evitar travas de string (Ex: "Approved" vs "approved")
-    const statusLimpo = status ? String(status).toLowerCase().trim() : "";
+    const userId = Number(req.userId);
+    if (req.userRole !== 'admin' && booking.userId !== userId) {
+      return res.status(403).json({ error: "Sem permissão." });
+    }
 
-    // 2. 🚨 CAPA DE PROTEÇÃO CRÍTICA: Se o status vindo da URL for de sucesso,
-    // nós confirmamos a reserva AGORA, sem depender do webhook de background.
-    const ehStatusSucesso = ['approved', 'pago', 'success', 'confirmado'].includes(statusLimpo);
+    if (booking.status !== 'confirmado' && booking.payment?.gatewayId) {
+      const paymentClient = new Payment(client);
+      const gatewayPayment = await paymentClient.get({ id: String(booking.payment.gatewayId) });
+      const referenceMatches = String(gatewayPayment.external_reference) === String(booking.id);
+      const amountMatches = Number(gatewayPayment.transaction_amount) === Number(booking.valorTotal);
 
-    if (ehStatusSucesso && booking.status !== 'confirmado') {
-      console.log(`[ALERTA SECURITY] Forçando confirmation imediata da reserva ${idSeguro} via retorno de tela.`);
-      
+      if (gatewayPayment.status === 'approved' && referenceMatches && amountMatches) {
       booking = await prisma.booking.update({
         where: { id: idSeguro },
         data: { status: 'confirmado' },
-        include: { court: true, user: true }
+        include: { court: true, user: true, payment: true }
       });
       
-      // 💡 MODIFICADO: Atualiza o pagamento forçado utilizando o valorTotal correto salvo no banco
       await prisma.payment.upsert({
         where: { bookingId: idSeguro },
-        update: { status: 'aprovado', valor: Number(booking.valorTotal) },
-        create: { bookingId: idSeguro, valor: Number(booking.valorTotal), metodo: 'mercadopago', status: 'aprovado' }
+        update: { status: 'aprovado', valor: Number(booking.valorTotal), metodo: gatewayPayment.payment_type_id },
+        create: { bookingId: idSeguro, gatewayId: String(gatewayPayment.id), valor: Number(booking.valorTotal), metodo: gatewayPayment.payment_type_id, status: 'aprovado' }
       });
 
-      // Dispara o e-mail oficial do Resend para o cliente
-      try {
-        await processarEnvioEmail(booking);
-      } catch (emailErr) {
-        console.error('Erro ao enviar e-mail no fallback:', emailErr.message);
+        try {
+          await processarEnvioEmail(booking);
+        } catch (emailErr) {
+          console.error('Erro ao enviar e-mail no fallback:', emailErr.message);
+        }
       }
     }
 
