@@ -83,7 +83,6 @@ export default function PagamentoAguardando() {
       if (restante <= 0) {
         clearInterval(intervalo);
         localStorage.removeItem(`tempoFim_${bookingId}`);
-        await liberarReserva();
         navigate("/agendar");
       } else {
         const m = String(Math.floor(restante / 1000 / 60)).padStart(2, "0");

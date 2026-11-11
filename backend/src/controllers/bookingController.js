@@ -575,7 +575,8 @@ async function cancelar(req, res) {
 
   try {
     const booking = await prisma.booking.findUnique({
-      where: { id: Number(id) }
+      where: { id: Number(id) },
+      include: { payment: true }
     });
 
     if (!booking) {
@@ -584,6 +585,10 @@ async function cancelar(req, res) {
 
     if (booking.userId !== userId) {
       return res.status(403).json({ error: 'Sem permissão para cancelar esta reserva' });
+    }
+
+    if (booking.status === 'confirmado' || booking.status === 'pago' || booking.payment?.status === 'aprovado') {
+      return res.status(409).json({ error: 'Esta reserva já foi paga e não pode ser cancelada automaticamente.' });
     }
 
     const updated = await prisma.booking.update({

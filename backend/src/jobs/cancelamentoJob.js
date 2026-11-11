@@ -1,24 +1,66 @@
 const cron = require('node-cron');
 const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const MINUTOS_EXPIRACAO = 10;
+const prisma = new PrismaClient();
+const mercadoPago = process.env.MP_ACCESS_TOKEN
+  ? new Payment(new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }))
+  : null;
 
 async function cancelarReservasExpiradas() {
   const limite = new Date(Date.now() - MINUTOS_EXPIRACAO * 60 * 1000);
 
   try {
-    const resultado = await prisma.booking.updateMany({
+    const expiradas = await prisma.booking.findMany({
       where: {
         status: 'pendente',
-        createdAt: { lt: limite }
+        createdAt: { lt: limite },
       },
-      data: { status: 'cancelado' }
+      include: {
+        payment: true
+      },
     });
 
-    if (resultado.count > 0) {
-      console.log(`🧹 ${resultado.count} reserva(s) pendente(s) expirada(s) cancelada(s) automaticamente.`);
+    let canceladas = 0;
+    for (const booking of expiradas) {
+      let aprovado = booking.payment?.status === 'aprovado';
+
+      if (!aprovado && mercadoPago && booking.payment?.gatewayId) {
+        try {
+          const pagamento = await mercadoPago.get({ id: String(booking.payment.gatewayId) });
+          aprovado =
+            pagamento.status === 'approved' &&
+            String(pagamento.external_reference) === String(booking.id) &&
+            Number(pagamento.transaction_amount) === Number(booking.valorTotal);
+
+          if (aprovado) {
+            await prisma.payment.update({
+              where: { bookingId: booking.id },
+              data: { status: 'aprovado', metodo: pagamento.payment_type_id }
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao verificar pagamento da reserva ${booking.id}:`, error.message);
+        }
+      }
+
+      if (aprovado) {
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { status: 'confirmado' }
+        });
+      } else {
+        await prisma.booking.update({
+          where: { id: booking.id },
+          data: { status: 'cancelado' }
+        });
+        canceladas += 1;
+      }
+    }
+
+    if (canceladas > 0) {
+      console.log(`🧹 ${canceladas} reserva(s) pendente(s) expirada(s) cancelada(s) automaticamente.`);
     }
   } catch (err) {
     console.error('Erro ao cancelar reservas expiradas:', err);
