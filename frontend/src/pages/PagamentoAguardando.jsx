@@ -44,7 +44,10 @@ export default function PagamentoAguardando() {
         setLoading(false);
       } catch (err) {
         console.error("Erro geral na inicialização:", err);
-        setErro("Erro ao conectar com o Mercado Pago. Tente novamente.");
+        setErro(
+          err.response?.data?.error ||
+            "Erro ao conectar com o Mercado Pago. Tente novamente.",
+        );
         setLoading(false);
       }
     }

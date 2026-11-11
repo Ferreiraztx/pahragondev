@@ -12,6 +12,13 @@ const client = new MercadoPagoConfig({
 
 async function criarPagamento(req, res) {
   const { bookingId } = req.body
+
+  if (!process.env.MP_ACCESS_TOKEN) {
+    console.error('MP_ACCESS_TOKEN não configurado no ambiente do backend.')
+    return res.status(503).json({
+      error: 'Pagamentos temporariamente indisponíveis. Configure o Mercado Pago no backend.'
+    })
+  }
   
   // 💡 CORREÇÃO CRÍTICA: Captura o ID decodificado corretamente para evitar o erro 403
   const rawUserId = req.user?.id || req.userId;
@@ -112,8 +119,10 @@ async function criarPagamento(req, res) {
       preferenceId: result.id
     })
   } catch (err) {
-    console.error('ERRO PAGAMENTO:', err)
-    return res.status(500).json({ error: 'Erro ao criar pagamento' })
+    console.error('ERRO PAGAMENTO:', err?.message || err)
+    return res.status(502).json({
+      error: 'Não foi possível gerar o pagamento no Mercado Pago.'
+    })
   }
 }
 
