@@ -596,6 +596,10 @@ async function horariosDisponiveis(req, res) {
   ];
 
   try {
+    if (!Number.isInteger(horariocut) || horariocut <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(data))) {
+      return res.status(400).json({ error: 'Quadra ou data inválida.' });
+    }
+
     const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000);
     
     await prisma.booking.updateMany({
@@ -640,7 +644,7 @@ async function horariosDisponiveis(req, res) {
     const bloqueios = await prisma.bloqueioQuadra.findMany({
       where: {
         quadraId: Number(courtId),
-        data: dataSelecionadaString
+        data: dataBusca
       }
     });
 

@@ -113,6 +113,10 @@ export default function Booking() {
       setHorariosProcessados(mapeados);
     } catch (err) {
       console.error("Erro ao buscar horários", err);
+      setHorariosProcessados([]);
+      setMensagem(
+        "Não foi possível carregar os horários. Tente novamente em alguns instantes.",
+      );
     }
   }
 
