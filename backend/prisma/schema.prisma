@@ -13,6 +13,7 @@ model User {
   email                String    @unique
   cpf                  String?
   senha                String
+  authProvider         String    @default("local")
   telefone             String?
   dataNascimento       DateTime?
   cep                  String?

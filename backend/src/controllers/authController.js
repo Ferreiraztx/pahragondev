@@ -12,6 +12,10 @@ const prisma = new PrismaClient();
 
 const resend = new Resend(process.env.RESEND_PASS);
 
+function contaPodeAlterarSenha(user) {
+  return user?.authProvider !== 'google';
+}
+
 // 💡 FUNÇÃO AUXILIAR: Centraliza a configuração de segurança do cookie
 function enviarCookieToken(res, token) {
   res.cookie('token', token, {
@@ -113,6 +117,64 @@ async function resetPassword(req, res) {
   }
 }
 
+async function alterarSenha(req, res) {
+  const { senhaAtual, novaSenha, confirmarSenha } = req.body;
+  const userId = Number(req.userId || req.user?.id);
+
+  if (!userId || !senhaAtual || !novaSenha || !confirmarSenha) {
+    return res.status(400).json({ error: 'Informe a senha atual e todos os campos da nova senha.' });
+  }
+
+  if (novaSenha !== confirmarSenha) {
+    return res.status(400).json({ error: 'A confirmação da nova senha não confere.' });
+  }
+
+  if (novaSenha.length < 8) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres.' });
+  }
+
+  if (senhaAtual === novaSenha) {
+    return res.status(400).json({ error: 'A nova senha deve ser diferente da senha atual.' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { senha: true, isActive: true, authProvider: true }
+    });
+
+    if (!user || user.isActive === false) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    if (!contaPodeAlterarSenha(user) || req.user?.authMethod === 'google') {
+      return res.status(400).json({
+        error: 'Contas conectadas ao Google devem alterar a senha nas configurações da conta Google.'
+      });
+    }
+
+    const senhaAtualCorreta = await bcrypt.compare(senhaAtual, user.senha);
+    if (!senhaAtualCorreta) {
+      return res.status(400).json({ error: 'A senha atual está incorreta.' });
+    }
+
+    const senhaHash = await bcrypt.hash(novaSenha, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        senha: senhaHash,
+        passwordResetToken: null,
+        passwordResetExpires: null
+      }
+    });
+
+    return res.json({ message: 'Senha alterada com sucesso.' });
+  } catch (error) {
+    console.error('Erro ao alterar senha:', error);
+    return res.status(500).json({ error: 'Erro interno ao alterar a senha.' });
+  }
+}
+
 async function loginGoogle(req, res) {
   const { token } = req.body;
 
@@ -146,13 +208,14 @@ async function loginGoogle(req, res) {
           email,
           nome: name,
           senha: senhaInutilizada,
-          telefone: "" 
+          telefone: "",
+          authProvider: "google"
         }
       });
     }
 
     const tokenSistema = jwt.sign(
-      { id: user.id, role: 'user' }, 
+      { id: user.id, role: 'user', authMethod: 'google' },
       process.env.JWT_SECRET, 
       { expiresIn: '7d' }
     );
@@ -164,7 +227,9 @@ async function loginGoogle(req, res) {
         id: user.id,
         nome: user.nome,
         email: user.email,
-        role: 'user'
+        role: 'user',
+        authProvider: user.authProvider,
+        authMethod: 'google'
       }
     });
 
@@ -187,18 +252,20 @@ async function register(req, res) {
     const senhaHash = await bcrypt.hash(senha, 8);
 
     const user = await prisma.user.create({
-      data: { nome, email, senha: senhaHash, telefone }
+      data: { nome, email, senha: senhaHash, telefone, authProvider: "local" }
     });
 
     const token = jwt.sign(
-      { id: user.id, role: 'user' },
+      { id: user.id, role: 'user', authMethod: 'local' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     enviarCookieToken(res, token);
 
-    return res.status(201).json({ user: { id: user.id, nome, email, role: 'user' } });
+    return res.status(201).json({
+      user: { id: user.id, nome, email, role: 'user', authProvider: user.authProvider }
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao cadastrar usuário' });
   }
@@ -226,14 +293,16 @@ async function login(req, res) {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: 'user' },
+      { id: user.id, role: 'user', authMethod: 'local' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     enviarCookieToken(res, token);
 
-    return res.json({ user: { id: user.id, nome: user.nome, email, role: 'user' } });
+    return res.json({
+      user: { id: user.id, nome: user.nome, email, role: 'user', authProvider: user.authProvider }
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao fazer login' });
   }
@@ -406,6 +475,8 @@ const atualizarPerfil = async (req, res) => {
     if (usuarioAtualizado.senha) {
       delete usuarioAtualizado.senha;
     }
+    delete usuarioAtualizado.passwordResetToken;
+    delete usuarioAtualizado.passwordResetExpires;
 
     return res.json({ message: 'Perfil updated!', user: usuarioAtualizado });
 
@@ -427,18 +498,41 @@ const obterPerfil = async (req, res) => {
     let usuario = null;
 
     if (role === 'admin') {
-      usuario = await prisma.admin.findUnique({ where: { id: Number(userId) } });
+      usuario = await prisma.admin.findUnique({
+        where: { id: Number(userId) },
+        select: { id: true, nome: true, email: true }
+      });
     } else {
-      usuario = await prisma.user.findUnique({ where: { id: Number(userId) } });
+      usuario = await prisma.user.findUnique({
+        where: { id: Number(userId) },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          cpf: true,
+          telefone: true,
+          dataNascimento: true,
+          cep: true,
+          rua: true,
+          numero: true,
+          complemento: true,
+          bairro: true,
+          cidade: true,
+          estado: true,
+          authProvider: true
+        }
+      });
     }
 
     if (!usuario) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
-    if (usuario.senha) delete usuario.senha;
-
-    return res.json({ ...usuario, role });
+    return res.json({
+      ...usuario,
+      role,
+      authMethod: req.user?.authMethod || null
+    });
   } catch (error) {
     console.error("Erro ao buscar perfil:", error);
     return res.status(500).json({ error: 'Erro interno ao buscar perfil.' });
@@ -484,5 +578,7 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  alterarSenha,
+  contaPodeAlterarSenha,
   deleteAccount  
 };

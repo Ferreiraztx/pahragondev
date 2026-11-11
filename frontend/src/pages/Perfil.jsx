@@ -56,6 +56,14 @@ export default function Perfil() {
   const [carregando, setCarregando] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [mensagem, setMensagem] = useState({ tipo: "", texto: "" });
+  const [dadosSenha, setDadosSenha] = useState({
+    senhaAtual: "",
+    novaSenha: "",
+    confirmarSenha: "",
+  });
+  const [mensagemSenha, setMensagemSenha] = useState({ tipo: "", texto: "" });
+  const [alterandoSenha, setAlterandoSenha] = useState(false);
+  const [podeTrocarSenha, setPodeTrocarSenha] = useState(true);
 
   // Estados para a trava de CPF e Modais de Exclusão
   const [isCpfBloqueado, setIsCpfBloqueado] = useState(false);
@@ -85,6 +93,7 @@ export default function Perfil() {
         const response = await api.get("/auth/perfil");
         if (response.data) {
           const dadosDoBanco = response.data;
+          setPodeTrocarSenha(dadosDoBanco.authMethod !== "google");
           setFormData({
             nome: dadosDoBanco.nome || "",
             cpf: dadosDoBanco.cpf ? aplicarMascaraCPF(dadosDoBanco.cpf) : "",
@@ -232,6 +241,30 @@ export default function Perfil() {
       });
     } finally {
       setCarregando(false);
+    }
+  };
+
+  const handleAlterarSenha = async (e) => {
+    e.preventDefault();
+    setMensagemSenha({ tipo: "", texto: "" });
+
+    if (dadosSenha.novaSenha !== dadosSenha.confirmarSenha) {
+      setMensagemSenha({ tipo: "erro", texto: "A confirmação da nova senha não confere." });
+      return;
+    }
+
+    setAlterandoSenha(true);
+    try {
+      await api.post("/auth/alterar-senha", dadosSenha);
+      setDadosSenha({ senhaAtual: "", novaSenha: "", confirmarSenha: "" });
+      setMensagemSenha({ tipo: "sucesso", texto: "Senha alterada com sucesso!" });
+    } catch (err) {
+      setMensagemSenha({
+        tipo: "erro",
+        texto: err.response?.data?.error || "Não foi possível alterar a senha.",
+      });
+    } finally {
+      setAlterandoSenha(false);
     }
   };
 
@@ -515,6 +548,65 @@ export default function Perfil() {
             </button>
           </div>
         </form>
+
+        {podeTrocarSenha && <form
+          onSubmit={handleAlterarSenha}
+          className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm space-y-5"
+        >
+          <div className="border-b border-slate-100 pb-3">
+            <h2 className="text-xs font-bold text-teal-600 uppercase tracking-widest">
+              Segurança
+            </h2>
+            <p className="text-slate-500 text-sm mt-1">
+              Troque sua senha usando a senha atual.
+            </p>
+          </div>
+
+          {mensagemSenha.texto && (
+            <div className={`text-sm px-4 py-3 rounded-xl font-medium text-center ${
+              mensagemSenha.tipo === "sucesso"
+                ? "bg-teal-50 border border-teal-100 text-teal-700"
+                : "bg-rose-50 border border-rose-100 text-rose-700"
+            }`}>
+              {mensagemSenha.texto}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              ["senhaAtual", "Senha atual"],
+              ["novaSenha", "Nova senha"],
+              ["confirmarSenha", "Confirmar nova senha"],
+            ].map(([name, label]) => (
+              <div key={name}>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">
+                  {label}
+                </label>
+                <input
+                  type="password"
+                  name={name}
+                  value={dadosSenha[name]}
+                  onChange={(e) => setDadosSenha((prev) => ({
+                    ...prev,
+                    [name]: e.target.value,
+                  }))}
+                  minLength={name !== "senhaAtual" ? 8 : undefined}
+                  required
+                  autoComplete={name === "senhaAtual" ? "current-password" : "new-password"}
+                  className="w-full mt-1.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 font-medium focus:outline-none focus:border-teal-500 transition"
+                />
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="submit"
+            disabled={alterandoSenha}
+            className="bg-[#1e2221] hover:bg-black text-white font-bold px-6 py-3 rounded-xl transition text-sm disabled:opacity-50"
+          >
+            {alterandoSenha ? "Alterando..." : "Alterar Senha"}
+          </button>
+        </form>}
 
         {/* SEÇÃO ZONA DE PERIGO (LGPD) */}
         <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm space-y-4">

@@ -16,10 +16,18 @@ const limitadorLogin = rateLimit({
 });
 
 // 💡 Adicionado o 'logout' aqui na desestruturação:
-const { register, login, loginAdmin, loginGoogle, atualizarPerfil, obterPerfil, listarAtletas, logout, forgotPassword, resetPassword, deleteAccount } = require('../controllers/authController');
+const { register, login, loginAdmin, loginGoogle, atualizarPerfil, obterPerfil, listarAtletas, logout, forgotPassword, resetPassword, alterarSenha, deleteAccount } = require('../controllers/authController');
 const requireAuth = require('../middlewares/auth');
 const requireAdmin = require('../middlewares/admin');
 const { listar } = require('../controllers/courtController');
+
+const limitadorAlteracaoSenha = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de alteração de senha. Tente novamente mais tarde.' }
+});
 
 router.post('/register', register);
 
@@ -36,6 +44,7 @@ router.get('/usuarios', requireAuth, requireAdmin, listarAtletas);
 router.post('/logout', logout);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/alterar-senha', requireAuth, limitadorAlteracaoSenha, alterarSenha);
 router.delete("/me/excluir-conta", requireAuth, deleteAccount);
 
 module.exports = router;
