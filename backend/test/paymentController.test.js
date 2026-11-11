@@ -3,7 +3,10 @@ const assert = require('node:assert/strict')
 
 process.env.RESEND_PASS = 're_test_regression'
 
-const { pagamentoAprovadoNoPrazo } = require('../src/controllers/paymentController')
+const {
+  pagamentoAprovadoNoPrazo,
+  USUARIO_PAGAMENTO_SELECT
+} = require('../src/controllers/paymentController')
 
 const booking = {
   id: 42,
@@ -43,4 +46,16 @@ test('rejeita pagamento com referência ou valor diferentes da reserva', () => {
   }
 
   assert.equal(pagamentoAprovadoNoPrazo(payment, booking), false)
+})
+
+test('não seleciona credenciais ou tokens pessoais na confirmação de pagamento', () => {
+  assert.deepEqual(USUARIO_PAGAMENTO_SELECT, {
+    id: true,
+    nome: true,
+    email: true,
+    telefone: true
+  })
+  assert.equal('senha' in USUARIO_PAGAMENTO_SELECT, false)
+  assert.equal('passwordResetToken' in USUARIO_PAGAMENTO_SELECT, false)
+  assert.equal('passwordResetExpires' in USUARIO_PAGAMENTO_SELECT, false)
 })

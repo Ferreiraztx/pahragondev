@@ -10,6 +10,12 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN
 })
 const TEMPO_PAGAMENTO_MS = 10 * 60 * 1000
+const USUARIO_PAGAMENTO_SELECT = {
+  id: true,
+  nome: true,
+  email: true,
+  telefone: true
+}
 
 function pagamentoAprovadoNoPrazo(payment, booking) {
   const dataPagamento = payment?.date_approved || payment?.date_created
@@ -284,7 +290,11 @@ async function confirmarPagamento(req, res) {
     // 1. Busca a reserva atual no banco
     let booking = await prisma.booking.findUnique({
       where: { id: idSeguro },
-      include: { court: true, user: true, payment: true }
+      include: {
+        court: true,
+        user: { select: USUARIO_PAGAMENTO_SELECT },
+        payment: true
+      }
     });
 
     if (!booking) {
@@ -303,7 +313,11 @@ async function confirmarPagamento(req, res) {
         booking = await prisma.booking.update({
           where: { id: idSeguro },
           data: { status: 'confirmado' },
-          include: { court: true, user: true, payment: true }
+          include: {
+            court: true,
+            user: { select: USUARIO_PAGAMENTO_SELECT },
+            payment: true
+          }
         });
 
         await prisma.payment.upsert({
@@ -357,5 +371,6 @@ module.exports = {
   criarPagamento,
   webhook,
   confirmarPagamento,
-  pagamentoAprovadoNoPrazo
+  pagamentoAprovadoNoPrazo,
+  USUARIO_PAGAMENTO_SELECT
 }
