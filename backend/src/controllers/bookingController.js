@@ -613,6 +613,9 @@ async function horariosDisponiveis(req, res) {
     const dataSelecionadaString = data.split('T')[0];
     const [anoD, mesD, diaD] = dataSelecionadaString.split('-');
     const dataBusca = new Date(Date.UTC(Number(anoD), Number(mesD) - 1, Number(diaD), 12, 0, 0));
+    if (Number.isNaN(dataBusca.getTime())) {
+      return res.status(400).json({ error: 'Data inválida.' });
+    }
 
     const reservas = await prisma.booking.findMany({
       where: {
