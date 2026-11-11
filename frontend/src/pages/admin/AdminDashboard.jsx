@@ -196,7 +196,7 @@ export default function AdminDashboard() {
       return;
     }
     carregarDados();
-  });
+  }, []);
 
   async function carregarDados() {
     const headers = { Authorization: `Bearer ${token}` };
