@@ -64,6 +64,19 @@ async function criar(req, res) {
     const dataAgendamento = new Date(req.body.data);
     const hoje = new Date();
     const hojeStringNormal = hoje.toISOString().split('T')[0];
+    const [anoAgendamento, mesAgendamento, diaAgendamento] = dataAgendamentoString.split('-').map(Number);
+    const dataBusca = new Date(Date.UTC(
+      anoAgendamento,
+      mesAgendamento - 1,
+      diaAgendamento,
+      12,
+      0,
+      0
+    ));
+
+    if (Number.isNaN(dataBusca.getTime())) {
+      return res.status(400).json({ error: 'Data de agendamento inválida.' });
+    }
     
     if (dataAgendamentoString < hojeStringNormal) {
       return res.status(400).json({ error: "Não é possível agendar em datas passadas." });
@@ -78,7 +91,7 @@ async function criar(req, res) {
     const bloqueiosAtivos = await prisma.bloqueioQuadra.findMany({
       where: {
         quadraId: Number(courtId),
-        data: dataAgendamentoString
+        data: dataBusca
       }
     });
 
