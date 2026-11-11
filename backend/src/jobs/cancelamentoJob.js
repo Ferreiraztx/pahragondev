@@ -1,11 +1,14 @@
 const cron = require('node-cron');
 const { PrismaClient } = require('@prisma/client');
-const { MercadoPagoConfig, Payment } = require('mercadopago');
+const { MercadoPagoConfig, Payment, Preference } = require('mercadopago');
 
 const MINUTOS_EXPIRACAO = 10;
 const prisma = new PrismaClient();
 const mercadoPago = process.env.MP_ACCESS_TOKEN
   ? new Payment(new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }))
+  : null;
+const preferenciasMercadoPago = process.env.MP_ACCESS_TOKEN
+  ? new Preference(new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }))
   : null;
 
 async function cancelarReservasExpiradas() {
@@ -51,6 +54,27 @@ async function cancelarReservasExpiradas() {
           data: { status: 'confirmado' }
         });
       } else {
+        if (preferenciasMercadoPago && booking.payment?.preferenceId) {
+          try {
+            await preferenciasMercadoPago.update({
+              id: String(booking.payment.preferenceId),
+              updatePreferenceRequest: {
+                expires: true,
+                expiration_date_to: new Date().toISOString()
+              }
+            });
+          } catch (error) {
+            console.error(`Erro ao expirar link da reserva ${booking.id}:`, error.message);
+          }
+        }
+
+        if (booking.payment) {
+          await prisma.payment.update({
+            where: { bookingId: booking.id },
+            data: { status: 'expirado' }
+          });
+        }
+
         await prisma.booking.update({
           where: { id: booking.id },
           data: { status: 'cancelado' }

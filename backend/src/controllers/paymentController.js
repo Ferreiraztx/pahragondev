@@ -103,13 +103,13 @@ async function criarPagamento(req, res) {
 
     await prisma.payment.upsert({
       where: { bookingId: booking.id },
-      update: { gatewayId: result.id, valor, status: 'pendente' },
+      update: { preferenceId: String(result.id), valor, status: 'pendente' },
       create: {
         bookingId: booking.id,
         valor,
         metodo: 'mercadopago',
         status: 'pendente',
-        gatewayId: result.id
+        preferenceId: String(result.id)
       }
     })
 
@@ -164,7 +164,10 @@ async function webhook(req, res) {
       })
       const amountMatches = bookingOriginal &&
         Number(payment.transaction_amount) === Number(bookingOriginal.valorTotal)
-      const paymentMatches = bookingOriginal?.payment?.gatewayId === String(payment.id)
+      const paymentMatches =
+        bookingOriginal?.payment &&
+        (!bookingOriginal.payment.gatewayId ||
+          bookingOriginal.payment.gatewayId === String(payment.id))
 
       if (status === 'approved' && amountMatches && paymentMatches) {
         const bookingAtualizado = await prisma.booking.update({
@@ -175,7 +178,11 @@ async function webhook(req, res) {
 
         await prisma.payment.update({
           where: { bookingId },
-          data: { status: 'aprovado', metodo: payment.payment_type_id }
+          data: {
+            status: 'aprovado',
+            metodo: payment.payment_type_id,
+            gatewayId: String(payment.id)
+          }
         })
 
         // 🚀 DISPARO OFICIAL VIA WEBHOOK DO MERCADO PAGO

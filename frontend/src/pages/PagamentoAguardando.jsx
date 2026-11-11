@@ -13,6 +13,7 @@ export default function PagamentoAguardando() {
   const [tempoRestante, setTempoRestante] = useState("10:00");
   const [initPoint, setInitPoint] = useState("");
   const [valorTotal, setValorTotal] = useState(0);
+  const [tempoFim, setTempoFim] = useState(null);
 
   useEffect(() => {
     if (!bookingId) {
@@ -25,6 +26,10 @@ export default function PagamentoAguardando() {
       try {
         // 💡 Busca os detalhes da reserva salvos no banco de dados
         const resBooking = await api.get(`/bookings/detalhes/${bookingId}`);
+        const criadoEm = new Date(resBooking.data.createdAt).getTime();
+        if (!Number.isNaN(criadoEm)) {
+          setTempoFim(criadoEm + 10 * 60 * 1000);
+        }
 
         // 💡 MODIFICADO: Puxa o valor total e exato já calculado pelo backend (Quadra + Raquetes)
         const totalOficial = resBooking.data.valorTotal || resBooking.data.court?.precoPorHora || 0;
@@ -66,15 +71,7 @@ export default function PagamentoAguardando() {
 
   // Cronômetro regressivo de 10 minutos
   useEffect(() => {
-    const tempoFinalSalvo = localStorage.getItem(`tempoFim_${bookingId}`);
-
-    const tempoFim = tempoFinalSalvo
-      ? parseInt(tempoFinalSalvo)
-      : new Date().getTime() + 10 * 60 * 1000;
-
-    if (!tempoFinalSalvo) {
-      localStorage.setItem(`tempoFim_${bookingId}`, tempoFim);
-    }
+    if (!tempoFim) return undefined;
 
     const intervalo = setInterval(async () => {
       const agora = new Date().getTime();
@@ -82,7 +79,6 @@ export default function PagamentoAguardando() {
 
       if (restante <= 0) {
         clearInterval(intervalo);
-        localStorage.removeItem(`tempoFim_${bookingId}`);
         navigate("/agendar");
       } else {
         const m = String(Math.floor(restante / 1000 / 60)).padStart(2, "0");
@@ -92,7 +88,7 @@ export default function PagamentoAguardando() {
     }, 1000);
 
     return () => clearInterval(intervalo);
-  }, [navigate, bookingId]);
+  }, [navigate, tempoFim]);
 
   async function cancelarEVoltar() {
     localStorage.removeItem(`tempoFim_${bookingId}`);

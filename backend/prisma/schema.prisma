@@ -72,6 +72,7 @@ model Payment {
   metodo    String
   status    String  @default("pendente")
   gatewayId String?
+  preferenceId String?
 }
 
 model Tournament {
