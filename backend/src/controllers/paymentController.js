@@ -9,6 +9,35 @@ const prisma = new PrismaClient()
 const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN
 })
+const TEMPO_PAGAMENTO_MS = 10 * 60 * 1000
+
+async function expirarPagamento(booking) {
+  if (booking.payment?.preferenceId) {
+    try {
+      const preference = new Preference(client)
+      await preference.update({
+        id: String(booking.payment.preferenceId),
+        updatePreferenceRequest: {
+          expires: true,
+          expiration_date_to: new Date().toISOString()
+        }
+      })
+    } catch (error) {
+      console.error(`Erro ao expirar preferência da reserva ${booking.id}:`, error.message)
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.payment.updateMany({
+      where: { bookingId: booking.id, status: { not: 'aprovado' } },
+      data: { status: 'expirado' }
+    }),
+    prisma.booking.updateMany({
+      where: { id: booking.id, status: 'pendente' },
+      data: { status: 'cancelado' }
+    })
+  ])
+}
 
 async function criarPagamento(req, res) {
   const { bookingId } = req.body
@@ -27,7 +56,7 @@ async function criarPagamento(req, res) {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: Number(bookingId) },
-      include: { court: true, user: true }
+      include: { court: true, user: true, payment: true }
     })
 
     if (!booking) {
@@ -45,6 +74,11 @@ async function criarPagamento(req, res) {
       return res.status(400).json({ 
         error: 'Esta reserva já foi paga e confirmada. Não é possível pagar novamente.' 
       })
+    }
+
+    if (Date.now() >= new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS) {
+      await expirarPagamento(booking)
+      return res.status(410).json({ error: 'O prazo de pagamento expirou. A reserva foi cancelada.' })
     }
 
     // ==========================================================
@@ -169,7 +203,12 @@ async function webhook(req, res) {
         (!bookingOriginal.payment.gatewayId ||
           bookingOriginal.payment.gatewayId === String(payment.id))
 
-      if (status === 'approved' && amountMatches && paymentMatches) {
+      const dataPagamento = payment.date_approved || payment.date_created
+      const aprovadoNoPrazo = bookingOriginal && dataPagamento &&
+        new Date(dataPagamento).getTime() <=
+          new Date(bookingOriginal.createdAt).getTime() + TEMPO_PAGAMENTO_MS
+
+      if (status === 'approved' && amountMatches && paymentMatches && aprovadoNoPrazo && bookingOriginal.status === 'pendente') {
         const bookingAtualizado = await prisma.booking.update({
           where: { id: bookingId },
           data: { status: 'confirmado' },
@@ -227,13 +266,25 @@ async function confirmarPagamento(req, res) {
       return res.status(403).json({ error: "Sem permissão." });
     }
 
+    if (
+      booking.status === 'pendente' &&
+      Date.now() >= new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS
+    ) {
+      await expirarPagamento(booking)
+      return res.status(410).json({ error: 'O prazo de pagamento expirou. A reserva foi cancelada.' })
+    }
+
     if (booking.status !== 'confirmado' && booking.payment?.gatewayId) {
       const paymentClient = new Payment(client);
       const gatewayPayment = await paymentClient.get({ id: String(booking.payment.gatewayId) });
       const referenceMatches = String(gatewayPayment.external_reference) === String(booking.id);
       const amountMatches = Number(gatewayPayment.transaction_amount) === Number(booking.valorTotal);
+      const dataPagamento = gatewayPayment.date_approved || gatewayPayment.date_created;
+      const aprovadoNoPrazo = dataPagamento &&
+        new Date(dataPagamento).getTime() <=
+          new Date(booking.createdAt).getTime() + TEMPO_PAGAMENTO_MS;
 
-      if (gatewayPayment.status === 'approved' && referenceMatches && amountMatches) {
+      if (gatewayPayment.status === 'approved' && referenceMatches && amountMatches && aprovadoNoPrazo) {
       booking = await prisma.booking.update({
         where: { id: idSeguro },
         data: { status: 'confirmado' },

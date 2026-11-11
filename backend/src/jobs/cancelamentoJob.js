@@ -32,10 +32,13 @@ async function cancelarReservasExpiradas() {
       if (!aprovado && mercadoPago && booking.payment?.gatewayId) {
         try {
           const pagamento = await mercadoPago.get({ id: String(booking.payment.gatewayId) });
+          const dataPagamento = pagamento.date_approved || pagamento.date_created;
           aprovado =
             pagamento.status === 'approved' &&
             String(pagamento.external_reference) === String(booking.id) &&
-            Number(pagamento.transaction_amount) === Number(booking.valorTotal);
+            Number(pagamento.transaction_amount) === Number(booking.valorTotal) &&
+            dataPagamento &&
+            new Date(dataPagamento).getTime() <= booking.createdAt.getTime() + MINUTOS_EXPIRACAO * 60 * 1000;
 
           if (aprovado) {
             await prisma.payment.update({
