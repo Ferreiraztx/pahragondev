@@ -94,15 +94,15 @@ export default function Estrutura() {
   const galeriaImagens = [
     {
       title: "Quadra Central",
-      url: "https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?q=80&w=600&auto=format&fit=crop",
+      url: "/quadras.png",
     },
     {
-      title: "Área Gourmet & Churrasco",
-      url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop",
+      title: "Área Gourmet",
+      url: "/gourmet.png",
     },
     {
-      title: "Jogos Noturnos",
-      url: "https://images.unsplash.com/photo-1544698310-74ea9d1c8258?q=80&w=600&auto=format&fit=crop",
+      title: "Estacionamento",
+      url: "/estacionamento.png",
     },
   ];
 
