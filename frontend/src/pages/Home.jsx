@@ -212,7 +212,7 @@ export default function Home() {
           id="experiencia"
           className="mx-auto max-w-6xl px-6 pb-10 pt-20"
         >
-          <div className="grid items-start gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
+          <div className="grid items-stretch gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
             <div className="max-w-xl pt-2">
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">
                 A experiência
@@ -227,7 +227,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200/90 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8">
+            <div className="h-full rounded-[2rem] border border-slate-200/90 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8">
               <div className="border-b border-slate-100 pb-5">
                 <p className="max-w-2xl text-sm font-medium leading-7 text-slate-500">
                   “Beach tennis com organização, conforto visual e uma jornada
@@ -255,7 +255,7 @@ export default function Home() {
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-16">
-          <div className="grid items-start gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
+          <div className="grid items-stretch gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
             <div className="lg:sticky lg:top-24">
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-teal-600">
                 Fluxo simplificado
@@ -270,7 +270,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="space-y-4 lg:pt-8">
+            <div className="h-full space-y-4">
               {steps.map((step) => (
                 <div
                   key={step.num}

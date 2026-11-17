@@ -110,7 +110,7 @@ async function criar(req, res) {
     }
 
     const booking = await prisma.$transaction(async (tx) => {
-      const lockKey = `${courtId}-${dataAgendamentoString}-${horaInicio}`;
+      const lockKey = `${courtId}-${dataAgendamentoString}`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`;
 
       const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000);
@@ -243,7 +243,7 @@ async function criarManual(req, res) {
     }
 
     const booking = await prisma.$transaction(async (tx) => {
-      const lockKey = `${courtId}-${dataAgendamentoString}-${horarioInicio}`;
+      const lockKey = `${courtId}-${dataAgendamentoString}`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`;
 
       const [anoStr, mesStr, diaStr] = dataAgendamentoString.split('-');

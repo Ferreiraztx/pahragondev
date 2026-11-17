@@ -113,7 +113,7 @@ export default function Register() {
       <div className="w-full max-w-md">
         {/* Identidade Visual Refinada */}
         <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-baseline gap-2 mb-4">
+          <Link to="/" className="inline-flex items-baseline gap-2 mb-4 cursor-pointer">
             <span className="font-black text-4xl tracking-tighter text-[#1e2221]">
               Pahragon
             </span>
@@ -193,7 +193,7 @@ export default function Register() {
             Já possui acesso?{" "}
             <Link
               to="/login"
-              className="text-teal-600 font-bold hover:underline"
+              className="cursor-pointer text-teal-600 font-bold hover:underline"
             >
               Entrar
             </Link>

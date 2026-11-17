@@ -303,7 +303,7 @@ export default function Booking() {
             <button
               type="button"
               onClick={() => setModalAviso({ visivel: false, texto: "" })}
-              className="w-full bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold py-3 rounded-xl transition shadow-lg active:scale-[0.98]"
+              className="w-full cursor-pointer bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-bold py-3 rounded-xl transition shadow-lg active:scale-[0.98]"
             >
               Entendido
             </button>
@@ -314,7 +314,7 @@ export default function Booking() {
       <header className="max-w-xl mx-auto px-6 py-8 border-b border-slate-200">
         <button
           onClick={() => navigate("/")}
-          className="text-sm font-bold text-slate-400 hover:text-[#1e2221]"
+          className="cursor-pointer text-sm font-bold text-slate-400 hover:text-[#1e2221]"
         >
           ← Voltar
         </button>
@@ -434,7 +434,7 @@ export default function Booking() {
                         ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                         : isSelected
                           ? "bg-teal-600 border-teal-600 text-white shadow-lg"
-                          : "bg-white border-slate-300 text-slate-800 hover:border-teal-600"
+                          : "bg-white border-slate-300 text-slate-800 hover:border-teal-600 cursor-pointer"
                     }`}
                   >
                     <span className="text-base tracking-wide">
@@ -522,7 +522,7 @@ export default function Booking() {
               disabled={blocosSelecionados.length < 2}
               className={`w-full font-bold py-4 rounded-xl transition text-lg shadow-lg flex flex-col items-center justify-center leading-tight ${
                 blocosSelecionados.length >= 2
-                  ? "bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20"
+                  ? "bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/20 cursor-pointer"
                   : "bg-slate-200 text-slate-400 cursor-not-allowed"
               }`}
             >

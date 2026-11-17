@@ -67,7 +67,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Identidade Visual Homogênea */}
         <div className="text-center mb-10">
-          <Link to="/" className="inline-flex items-baseline gap-2 mb-4">
+          <Link to="/" className="inline-flex items-baseline gap-2 mb-4 cursor-pointer">
             <span className="font-black text-4xl tracking-tighter text-[#1e2221]">
               Pahragon
             </span>
@@ -125,14 +125,14 @@ export default function Login() {
             <div className="flex justify-end -mt-2">
               <Link
                 to="/forgot-password"
-                className="text-xs font-semibold text-slate-400 hover:text-teal-600 transition"
+                className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-teal-600 transition"
               >
                 Esqueceu sua senha?
               </Link>
             </div>
 
             <button
-              className="w-full bg-[#1e2221] hover:bg-black text-white font-bold py-3.5 rounded-xl transition shadow-sm mt-2"
+              className="w-full cursor-pointer bg-[#1e2221] hover:bg-black text-white font-bold py-3.5 rounded-xl transition shadow-sm mt-2"
               type="submit"
             >
               Entrar
@@ -149,7 +149,7 @@ export default function Login() {
           </div>
 
           {/* Botão Oficial do Google Integrado */}
-          <div className="w-full flex justify-center">
+          <div className="w-full flex justify-center cursor-pointer">
             <GoogleLogin
               onSuccess={lidarComSucessoGoogle}
               onError={() => setErro("Falha na autenticação do Google")}
@@ -164,7 +164,7 @@ export default function Login() {
             Não tem conta?{" "}
             <Link
               to="/register"
-              className="text-teal-600 font-bold hover:underline"
+              className="cursor-pointer text-teal-600 font-bold hover:underline"
             >
               Cadastre-se
             </Link>
